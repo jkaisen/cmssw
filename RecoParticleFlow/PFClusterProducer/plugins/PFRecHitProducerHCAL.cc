@@ -223,6 +223,94 @@ void PFRecHitProducerHCAL::createRecHits(vector<reco::PFRecHit>& rechits,
 	assert( hbheHandle.isValid() );
       }
       
+      //!!! Added from here
+      for(unsigned irechit=0; irechit<hbheHandle->size(); irechit++) {
+        const HBHERecHit& hit = (*hbheHandle)[irechit];
+
+
+        double hitenergy = hit.energy();
+	double hittime = hit.time();
+
+        reco::PFRecHit* pfrh = 0;
+        reco::PFRecHit* pfrhCleaned = 0;
+
+
+        const HcalDetId& detid = hit.detid();
+        switch( detid.subdet() ) {
+        case HcalBarrel:
+          {
+            if(hitenergy < thresh_Barrel_ ) continue;
+            if(detid.depth()==1) {
+              hittime -= 48.9580/(2.16078+hitenergy);
+            } else if(detid.depth()==2) {
+              hittime -= 34.2860/(1.23746+hitenergy);
+            } else if(detid.depth()==3) {
+              hittime -= 38.6872/(1.48051+hitenergy);
+            }
+// time window for signal=4
+            if(    (detid.depth()==1 && hittime>-20 && hittime<5) 
+                || (detid.depth()==2 && hittime>-17 && hittime<8) 
+                || (detid.depth()==3 && hittime>-15 && hittime<10) 
+              ) {
+              pfrh = createHcalRecHit( detid,
+                                       hitenergy,
+                                       PFLayer::HCAL_BARREL1,
+                                       hcalBarrelGeometry );
+	      pfrh->setRescale(hittime);
+            }
+          }
+          break;
+        case HcalEndcap:
+          {
+            if(hitenergy < thresh_Endcap_ ) continue;
+            // Apply tower 29 calibration
+            if ( HCAL_Calib_ && abs(detid.ieta()) == 29 ) hitenergy *= HCAL_Calib_29;
+            if(detid.depth()==1) {
+              hittime -= 60.8050/(3.07285+hitenergy);
+            } else if(detid.depth()==2) {
+              hittime -= 47.1677/(2.06485+hitenergy);
+            } else if(detid.depth()==3) {
+              hittime -= 37.1941/(1.53790+hitenergy);
+            } else if(detid.depth()==4) {
+              hittime -= 42.9898/(1.92969+hitenergy);
+            } else if(detid.depth()==5) {
+              hittime -= 48.3157/(2.29903+hitenergy);
+            }
+// time window for signal=4
+            if(    (detid.depth()==1 && hittime>-20 && hittime<5) 
+                || (detid.depth()==2 && hittime>-19 && hittime<6) 
+                || (detid.depth()==3 && hittime>-18 && hittime<7) 
+                || (detid.depth()==4 && hittime>-17 && hittime<8) 
+                || (detid.depth()==5 && hittime>-15 && hittime<10) 
+              ) {
+              pfrh = createHcalRecHit( detid,
+                                       hitenergy,
+                                       PFLayer::HCAL_ENDCAP,
+                                       hcalEndcapGeometry );
+	      pfrh->setRescale(hittime);
+            }
+          }
+          break;
+        default:
+          LogError("PFHCALDualTimeRecHitProducer")
+            <<"HCAL rechit: unknown layer : "<<detid.subdet()<<endl;
+          continue;
+        }
+
+        if(pfrh) {
+          rechits.push_back( *pfrh );
+          delete pfrh;
+          idSortedRecHits.insert( make_pair(detid.rawId(),
+                                            rechits.size()-1 ) );
+        }
+        if(pfrhCleaned) { 
+          rechitsCleaned.push_back( *pfrhCleaned );
+          delete pfrhCleaned;
+        }
+      }
+
+      //!!! To here: check for conflicts plus extra info to add to header file
+
       // create rechits
       typedef CaloTowerCollection::const_iterator ICT;
     
